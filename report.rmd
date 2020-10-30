@@ -1,0 +1,135 @@
+---
+title: "Automatic vs Manual Transmission Influence on MPG"
+author: "Mateus Melo"
+date: "12/10/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Executive Summary
+
+In this analysis, we investigate whether or not there is a significant effect in the type of transmission used (automatic or manual) and the mpg value. This is done performing three steps: an exploratory analysis, where we try to understand the data and observe some trends; a statistical inference, where we try to build strong statistical evidence of the relation between the variables; the build of a regression model that best fits the data. By the end, we interpret our model to see it's limitations.
+
+## Exploratory Analysis
+
+Let us start by loading and getting some general information about the data.
+
+
+
+```{r}
+data("mtcars")
+str(mtcars)
+```
+
+We have 32 observations of 11 variables, all of them being of the numeric type. However, checking the [documentation](https://www.rdocumentation.org/packages/datasets/versions/3.6.2/topics/mtcars) of the data, we conclude that the cyl, vs, am gear and carb are categorical variable. Therefore, it will be better to treat them as factors.
+
+```{r echo=F}
+mtcars$am<-factor(mtcars$am)
+levels(mtcars$am)<-c("Automatic", "Manual")
+mtcars$cyl<-factor(mtcars$cyl)
+levels(mtcars$cyl)<-c("4cyl", "6cyl", "8cyl")
+mtcars$vs<-factor(mtcars$vs)
+levels(mtcars$vs)<-c("V-shape", "Straight")
+mtcars$gear<-factor(mtcars$gear)
+levels(mtcars$vs)<-c("3", "4", "5")
+mtcars$carb<-factor(mtcars$carb)
+levels(mtcars$carb)<-c("1", "2", "3", "4", "5", "6", "7", "8")
+```
+
+We are interested in the mpg relation with the am variable. Let's try to visualize this with a boxplot.
+
+```{r warning=FALSE, message=FALSE,fig.height=4,fig.width=6}
+library(ggplot2)
+ggplot(mtcars,aes(am,mpg))+geom_boxplot()+xlab("Transmission Mode")
+```
+
+There appears to have a difference between using an automatic or manual transmission. Let us see the mpg relation with the rest of the categorical variables.
+
+```{r warning=FALSE, message=FALSE,fig.height=3,fig.width=6}
+library(gridExtra)
+p1 <- ggplot(mtcars, aes(cyl,mpg))+geom_boxplot()
+p2 <- ggplot(mtcars, aes(vs,mpg))+geom_boxplot()
+p3 <- ggplot(mtcars, aes(gear,mpg))+geom_boxplot()
+p4 <- ggplot(mtcars, aes(carb,mpg))+geom_boxplot()
+grid.arrange(p1,p2,p3,p4,nrow=2)
+```
+
+Mpg seems to be related to the cyl and vs variables.
+
+To finish our exploratory analysis, let's take a look a the relation between the mpg and the numeric variables.
+
+```{r warning=FALSE, message=FALSE,fig.height=4,fig.width=6}
+library(GGally)
+ggpairs(mtcars,columns = c(1,3,4,5,6,7))
+```
+
+We have seen that the mpg variable is strongly correlated with all the numeric variables with the exception of qsec.
+
+## Statistical Inference
+
+To see if the am, vs and cyl variables actually affects the mpg, we are going to perform a t test. As we have seen, the data is not paired and the variance is different.
+
+```{r}
+am_p.value <- t.test(mpg~am, data=mtcars)$p.value
+vs_p.value <- t.test(mpg~vs, data=mtcars)$p.value
+cyl_4_6_p.value <- t.test(mpg~cyl,data=subset(mtcars,cyl=="4cyl" | cyl=="6cyl"))$p.value
+cyl_6_8_p.value <- t.test(mpg~cyl,data=subset(mtcars,cyl=="8cyl" | cyl=="6cyl"))$p.value
+cbind(am_p.value,vs_p.value,cyl_4_6_p.value,cyl_6_8_p.value)
+```
+
+Since all the tests returned very low p values (all of them being below 0.01), we can assume that these variables indeed affect the mpg.
+
+## Regression Model
+
+We are going to start to build our model including all the variables which we considered relevant in the steps above and see how well it fits the data.
+
+```{r}
+df <- subset(mtcars, select=c("mpg", "am", "cyl","vs","disp", "hp", "drat", "wt" ))
+fit1 <- lm(mpg~.,df)
+summary(fit1)$coef
+```
+
+Only the intercept and the hp coefficient had a p value low enough to be considered relevant. Let us see the variance inflation.
+
+```{r warning=F, message=F}
+library(car)
+vif(fit1)
+```
+
+We see that the variation inflation is very large for all the variables. This is not a surprise since they are very correlated, as we have seen in the exploratory analysis. In fact, it is pretty obvious that a car with a larger disp will have a large weight. The same can be said about the amount of cyl. Also, as the disp increases, so the hp does. Let us build several models with different variables and see how they compare with each other.
+
+```{r}
+fit2 <- lm(mpg~am+vs, df)
+fit3 <- lm(mpg~am+vs+wt, df)
+fit4 <- lm(mpg~am+vs+wt+hp, df)
+fit5 <- lm(mpg~am+vs+disp+hp+wt, df)
+fit6 <- lm(mpg~am+vs+cyl+disp+hp+wt, df)
+fit7 <- lm(mpg~am+vs+cyl+disp+hp+wt+drat, df)
+anova(fit2,fit3,fit4,fit5,fit6,fit7)
+```
+
+Including wt and hp in our model provokes significant changes in the variance. Therefore, we can assume that fit4 can serve as a valid model.
+
+## Model Interpreting
+
+Let us check some general information of the chosen model.
+
+```{r}
+summary(fit4)
+```
+We have a high R² value and low p value for the model. Therefore, we are able to assume that the model is relevant. The wt and hp have low p values, therefore we can assume that these variables indeed have a linear relation with the outcome. The intercept represents the expected value when the am  value is set to 0 (automatic transmission), vs is set to 3 and the other variables set to 0. It also has a very low p value, so we can assume it is indeed relevant. The amManual estimate represents the mean expected change of the outcome when we have manual transmission. Since it's p value is larger than 0.05, we fail to reject the null hypothesis that there is a significant change in the outcome for different types of transmission.
+
+To end up, let us see the residuals behavior against the fitted values.
+
+```{r}
+plot(fit4,which=1)
+```
+
+There is no clear pattern and the residuals variance seems to be the same across the fitted values.
+
+## Conclusion 
+
+Although there is a difference in the mpg when we change from automatic to manual transmission (the change is around 2.42), we lack of strong statistical evidence to conclude that the manual transmission is indeed better than the automatic one.

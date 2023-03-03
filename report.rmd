@@ -2,7 +2,9 @@
 title: "Automatic vs Manual Transmission Influence on MPG"
 author: "Mateus Melo"
 date: "12/10/2020"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -26,7 +28,7 @@ str(mtcars)
 
 We have 32 observations of 11 variables, all of them being of the numeric type. However, checking the [documentation](https://www.rdocumentation.org/packages/datasets/versions/3.6.2/topics/mtcars) of the data, we conclude that the cyl, vs, am gear and carb are categorical variable. Therefore, it will be better to treat them as factors.
 
-```{r echo=F}
+```{r}
 mtcars$am<-factor(mtcars$am)
 levels(mtcars$am)<-c("Automatic", "Manual")
 mtcars$cyl<-factor(mtcars$cyl)
